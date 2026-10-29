@@ -2,37 +2,40 @@ import copy
 import streamlit as st
 import pandas as pd
 
-st.set_page_config(page_title="Méthode du simplexe", page_icon="📐")
+st.set_page_config(page_title="Méthode du simplexe", page_icon="📐", layout="wide")
 
 # =====================================================
-# PARTIE 1 : TITRE ET MODE D'EMPLOI
+# PARTIE 1 : TITRE
 # =====================================================
-st.title("📐 Méthode du simplexe")
-st.write("Résolvez un problème de programmation linéaire et suivez chaque étape.")
-st.write("**Comment faire ?** 1) Choisissez le type de problème. 2) Remplissez Z et les contraintes. 3) Cliquez sur **Résoudre**.")
-st.caption("Conditions : contraintes de la forme ≤ et seconds membres (b) positifs ou nuls.")
+st.title("Méthode du simplexe")
+st.caption("Résolution de programmes linéaires · Outil pédagogique pour étudiants")
+st.divider()
 
 # =====================================================
-# PARTIE 2 : SAISIE DU PROBLÈME
+# PARTIE 2 : PARAMÈTRES (barre latérale)
 # =====================================================
-exemple = st.checkbox("Remplir avec un exemple : max Z = 3x1 + 2x2 ; 2x1 + x2 ≤ 6 ; x1 + 2x2 ≤ 4")
-ex_c = [3.0, 2.0]
-ex_A = [[2.0, 1.0], [1.0, 2.0]]
-ex_b = [6.0, 4.0]
+st.sidebar.header("Paramètres")
+type_pb = st.sidebar.radio("Type de problème", ["Maximiser", "Minimiser"])
+exemple = st.sidebar.checkbox("Charger un exemple")
 suffixe = "_vide"
 if exemple:
     suffixe = "_exemple"
-
-type_pb = st.radio("Type de problème", ["Maximiser", "Minimiser"], horizontal=True)
-
-col_n, col_m = st.columns(2)
-n = col_n.number_input("Nombre de variables", min_value=1, max_value=8, value=2, step=1, key="n" + suffixe)
-m = col_m.number_input("Nombre de contraintes", min_value=1, max_value=8, value=2, step=1, key="m" + suffixe)
+n = st.sidebar.number_input("Nombre de variables", min_value=1, max_value=8, value=2, step=1, key="n" + suffixe)
+m = st.sidebar.number_input("Nombre de contraintes", min_value=1, max_value=8, value=2, step=1, key="m" + suffixe)
 n = int(n)
 m = int(m)
+st.sidebar.caption("Conditions : contraintes ≤, seconds membres b ≥ 0, variables ≥ 0.")
 
-st.subheader("Fonction objectif Z")
-st.caption("Coefficient de chaque variable dans Z.")
+ex_c = [3.0, 2.0]
+ex_A = [[2.0, 1.0], [1.0, 2.0]]
+ex_b = [6.0, 4.0]
+
+# =====================================================
+# PARTIE 3 : DONNÉES DU PROBLÈME
+# =====================================================
+st.subheader("1. Données du problème")
+
+st.markdown("**Fonction objectif Z**")
 colonnes = st.columns(n)
 c = []
 for j in range(n):
@@ -42,8 +45,7 @@ for j in range(n):
     valeur = colonnes[j].number_input("x" + str(j + 1), value=defaut, step=1.0, format="%g", key="c_" + str(j) + suffixe)
     c.append(valeur)
 
-st.subheader("Contraintes")
-st.caption("Chaque ligne : coefficients des variables, puis la valeur de b (la contrainte est ≤ b).")
+st.markdown("**Contraintes**")
 A = []
 b = []
 for i in range(m):
@@ -53,23 +55,66 @@ for i in range(m):
         defaut = 0.0
         if exemple and i < 2 and j < 2:
             defaut = ex_A[i][j]
-        valeur = colonnes[j].number_input("x" + str(j + 1) + " (ligne " + str(i + 1) + ")", value=defaut, step=1.0, format="%g", key="A_" + str(i) + "_" + str(j) + suffixe)
+        valeur = colonnes[j].number_input("x" + str(j + 1) + " · C" + str(i + 1), value=defaut, step=1.0, format="%g", key="A_" + str(i) + "_" + str(j) + suffixe)
         ligne.append(valeur)
     A.append(ligne)
     defaut = 0.0
     if exemple and i < 2:
         defaut = ex_b[i]
-    valeur_b = colonnes[n].number_input("b (ligne " + str(i + 1) + ")", value=defaut, step=1.0, format="%g", key="b_" + str(i) + suffixe)
+    valeur_b = colonnes[n].number_input("≤ b · C" + str(i + 1), value=defaut, step=1.0, format="%g", key="b_" + str(i) + suffixe)
     b.append(valeur_b)
 
 # =====================================================
-# PARTIE 3 : RÉSOLUTION
+# PARTIE 4 : APERÇU MATHÉMATIQUE DU PROBLÈME
+# =====================================================
+lignes_math = [c]
+for i in range(m):
+    lignes_math.append(A[i])
+
+expressions = []
+for r in range(m + 1):
+    expr = ""
+    for j in range(n):
+        coef = lignes_math[r][j]
+        if coef != 0:
+            if coef < 0 and expr == "":
+                signe = "-"
+            elif coef < 0:
+                signe = " - "
+            elif expr == "":
+                signe = ""
+            else:
+                signe = " + "
+            if abs(coef) == 1:
+                nombre = ""
+            else:
+                nombre = "%g" % abs(coef)
+            expr = expr + signe + nombre + "x_{" + str(j + 1) + "}"
+    if expr == "":
+        expr = "0"
+    expressions.append(expr)
+
+if type_pb == "Maximiser":
+    mot = "\\max"
+else:
+    mot = "\\min"
+
+st.markdown("**Aperçu du problème**")
+st.latex(mot + " \\; Z = " + expressions[0])
+systeme = "\\begin{cases} "
+for i in range(m):
+    systeme = systeme + expressions[i + 1] + " \\le " + "%g" % b[i] + " \\\\ "
+systeme = systeme + "x_{j} \\ge 0, \\; j = 1, \\dots, " + str(n) + " \\end{cases}"
+st.latex(systeme)
+
+# =====================================================
+# PARTIE 5 : RÉSOLUTION
 # =====================================================
 if st.button("Résoudre", type="primary"):
 
     for i in range(m):
         if b[i] < 0:
-            st.error("Le b de la ligne " + str(i + 1) + " est négatif. Cette version ne traite que b ≥ 0.")
+            st.error("Le b de la contrainte C" + str(i + 1) + " est négatif : cette version ne traite que b ≥ 0.")
             st.stop()
 
     # Minimiser Z revient à maximiser -Z
@@ -103,14 +148,12 @@ if st.button("Résoudre", type="primary"):
     for i in range(m):
         base.append(n + i)
 
-    # On garde chaque tableau pour l'afficher à la fin
     titres = []
     textes = []
     tableaux = []
     bases = []
     tab_rapports = []
 
-    # --- Itérations ---
     optimal = False
     nb_iterations = 0
 
@@ -152,8 +195,8 @@ if st.button("Résoudre", type="primary"):
         if nb_iterations == 1:
             titres.append("Tableau initial")
         else:
-            titres.append("Tableau après l'itération " + str(nb_iterations - 1))
-        textes.append("**Variable entrante :** " + noms[colonne] + " (plus grand coefficient positif dans la ligne Z).  \n**Variable sortante :** " + noms[base[ligne]] + " (plus petit rapport).  \n**Pivot :** " + str(round(pivot, 3) + 0.0) + " (ligne " + noms[base[ligne]] + ", colonne " + noms[colonne] + ").")
+            titres.append("Itération " + str(nb_iterations - 1))
+        textes.append("Variable entrante : " + noms[colonne] + "  ·  Variable sortante : " + noms[base[ligne]] + "  ·  Pivot : " + "%g" % (round(pivot, 3) + 0.0))
         tableaux.append(copy.deepcopy(T))
         bases.append(list(base))
         tab_rapports.append(rapports)
@@ -179,13 +222,13 @@ if st.button("Résoudre", type="primary"):
     if nb_iterations == 0:
         titres.append("Tableau initial")
     else:
-        titres.append("Tableau final après l'itération " + str(nb_iterations))
-    textes.append("Tous les coefficients de la ligne Z sont ≤ 0 : **l'optimum est atteint.**")
+        titres.append("Itération " + str(nb_iterations) + " · tableau final")
+    textes.append("Optimum atteint : plus aucun coefficient positif dans la ligne Z.")
     tableaux.append(copy.deepcopy(T))
     bases.append(list(base))
     tab_rapports.append(None)
 
-    # --- Lecture de la solution ---
+    # Lecture de la solution
     solution = [0.0] * n
     for i in range(m):
         if base[i] < n:
@@ -195,52 +238,60 @@ if st.button("Résoudre", type="primary"):
     for j in range(n):
         Z = Z + c[j] * solution[j]
 
-    # =====================================================
-    # PARTIE 4 : RÉSULTAT
-    # =====================================================
-    st.header("Résultat")
-    texte_solution = ""
-    for j in range(n):
-        texte_solution = texte_solution + "**x" + str(j + 1) + " = " + str(round(solution[j], 4) + 0.0) + "**  \n"
     if type_pb == "Maximiser":
-        texte_solution = texte_solution + "**Z max = " + str(round(Z, 4) + 0.0) + "**"
+        nom_z = "Z max"
     else:
-        texte_solution = texte_solution + "**Z min = " + str(round(Z, 4) + 0.0) + "**"
-    st.success(texte_solution)
-    st.write("Solution trouvée en " + str(nb_iterations) + " itération(s).")
+        nom_z = "Z min"
 
     # =====================================================
-    # PARTIE 5 : LES TABLEAUX ÉTAPE PAR ÉTAPE
+    # PARTIE 6 : AFFICHAGE (deux onglets)
     # =====================================================
-    st.header("Détail des étapes")
-    st.caption("e1, e2... sont les variables d'écart. La colonne « Rapport » sert à choisir la variable sortante.")
-    if type_pb == "Minimiser":
-        st.caption("Pour une minimisation, on maximise -Z : la ligne Z des tableaux concerne -Z.")
+    st.divider()
+    st.subheader("2. Résultats")
+    onglet_solution, onglet_etapes = st.tabs(["Solution optimale", "Étapes détaillées"])
 
-    for k in range(len(tableaux)):
-        tab = tableaux[k]
+    with onglet_solution:
+        cases = st.columns(n + 1)
+        for j in range(n):
+            cases[j].metric("x" + str(j + 1), "%g" % (round(solution[j], 4) + 0.0))
+        cases[n].metric(nom_z, "%g" % (round(Z, 4) + 0.0))
+        st.caption("Solution obtenue en " + str(nb_iterations) + " itération(s).")
 
-        lignes_df = []
-        etiquettes = []
-        for i in range(m + 1):
-            ligne_arrondie = []
-            for j in range(n + m + 1):
-                ligne_arrondie.append(round(tab[i][j], 3) + 0.0)
-            if tab_rapports[k] != None:
+    with onglet_etapes:
+        st.caption("e1, e2... : variables d'écart. La colonne « Rapport » (b ÷ coefficient de la colonne entrante) désigne la variable sortante.")
+        if type_pb == "Minimiser":
+            st.caption("Minimisation : on maximise -Z, la ligne Z des tableaux concerne donc -Z.")
+
+        for k in range(len(tableaux)):
+            tab = tableaux[k]
+            lignes_df = []
+            etiquettes = []
+            for i in range(m + 1):
+                ligne_arrondie = []
+                for j in range(n + m + 1):
+                    ligne_arrondie.append(round(tab[i][j], 3) + 0.0)
+                if tab_rapports[k] != None:
+                    if i < m:
+                        ligne_arrondie.append(tab_rapports[k][i])
+                    else:
+                        ligne_arrondie.append("")
+                lignes_df.append(ligne_arrondie)
                 if i < m:
-                    ligne_arrondie.append(tab_rapports[k][i])
+                    etiquettes.append(noms[bases[k][i]])
                 else:
-                    ligne_arrondie.append("")
-            lignes_df.append(ligne_arrondie)
-            if i < m:
-                etiquettes.append(noms[bases[k][i]])
-            else:
-                etiquettes.append("Z")
+                    etiquettes.append("Z")
 
-        colonnes_df = noms + ["b"]
-        if tab_rapports[k] != None:
-            colonnes_df = colonnes_df + ["Rapport"]
+            colonnes_df = noms + ["b"]
+            if tab_rapports[k] != None:
+                colonnes_df = colonnes_df + ["Rapport"]
 
-        st.subheader(titres[k])
-        st.write(textes[k])
-        st.table(pd.DataFrame(lignes_df, columns=colonnes_df, index=etiquettes))
+            st.markdown("**" + titres[k] + "**")
+            st.caption(textes[k])
+            st.table(pd.DataFrame(lignes_df, columns=colonnes_df, index=etiquettes))
+
+        st.markdown("**Solution finale**")
+        resume = ""
+        for j in range(n):
+            resume = resume + "x" + str(j + 1) + " = " + "%g" % (round(solution[j], 4) + 0.0) + "  ·  "
+        resume = resume + nom_z + " = " + "%g" % (round(Z, 4) + 0.0)
+        st.success(resume)
